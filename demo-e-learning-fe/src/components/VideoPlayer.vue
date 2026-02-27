@@ -82,10 +82,10 @@ const fetchVideoData = async () => {
 
 const fetchResumeTime = async () => {
   try {
-    const response = await fetch(`http://localhost:3000/api/video/resume?videoId=${currentVideoId}&userId=user-001`);
+    const response = await fetch(`http://localhost:3000/progress/resume?videoId=${currentVideoId}&userId=user-001`);
     if (response.ok) {
-      const savedTime = await response.json();
-      resumeTime.value = Number(savedTime) || 0;
+      const data = await response.json();
+      resumeTime.value = Number(data.resumeTime) || 0;
       console.log(`ดึงเวลาที่ค้างไว้สำเร็จ: ${resumeTime.value} วินาที`);
     }
   } catch (err) {
@@ -139,8 +139,6 @@ onBeforeUnmount(() => {
   if (videoPlayer.value) {
     sendTrackingData('LEAVE_PAGE', videoPlayer.value.currentTime);
   }
-
-  saveResumeTimeOnLeave();
 
   if (hls) {
     hls.destroy(); // ล้างข้อมูลทิ้ง คืนเมมโมรี่ให้เครื่อง
@@ -227,14 +225,6 @@ const handleEnded = (event) => sendTrackingData('ENDED', event.target.currentTim
 
 // 4. ดักจับตอน "เปลี่ยนหน้าเว็บ" หรือ "กดปุ่มย้อนกลับ"
 onBeforeUnmount(() => {
-  if (videoPlayer.value) {
-    // ส่งข้อมูลครั้งสุดท้ายก่อน Component จะถูกทำลาย
-    sendTrackingData('LEAVE_PAGE', videoPlayer.value.currentTime);
-  }
-  
-  if (hls) {
-    hls.destroy(); 
-  }
+  isLeaving = true;
 });
-// --- 📍 สิ้นสุดส่วนระบบ Tracking ---
 </script>
