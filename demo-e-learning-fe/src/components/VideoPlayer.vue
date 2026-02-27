@@ -47,6 +47,7 @@ const route = useRoute();
 const router = useRouter();
 
 const currentVideoId = route.params.id;
+let isLeaving = false;
 
 const video = ref(null);
 const loading = ref(true);
@@ -130,7 +131,7 @@ const handleTabClose = () => {
 onMounted(async() => {
   await fetchResumeTime();
   fetchVideoData();
-  window.addEventListener('beforeunload', handleTabClose); //ดักจับตอนกดปิดแท็บ (X) หรือรีเฟรชหน้า
+ window.addEventListener('beforeunload', saveResumeTimeOnLeave);
 });
 
 // ทำงานตอนปิดหน้านี้ (กดกลับ)
@@ -138,6 +139,8 @@ onBeforeUnmount(() => {
   if (videoPlayer.value) {
     sendTrackingData('LEAVE_PAGE', videoPlayer.value.currentTime);
   }
+
+  saveResumeTimeOnLeave();
 
   if (hls) {
     hls.destroy(); // ล้างข้อมูลทิ้ง คืนเมมโมรี่ให้เครื่อง
@@ -152,6 +155,8 @@ const lastTrackedTime = ref(0); // เก็บเวลาที่ยิง AP
 
 // ฟังก์ชันหลักสำหรับส่งข้อมูล 
 const sendTrackingData = async (eventType, currentTime) => {
+
+  if (isLeaving) return;
   const timeInSeconds = Math.floor(currentTime);
   
   console.log(`📡 [Tracking: ${eventType}] ส่งข้อมูลไป Backend -> เวลาปัจจุบัน: ${timeInSeconds} วินาที`);
@@ -178,6 +183,26 @@ const sendTrackingData = async (eventType, currentTime) => {
     console.error('❌ เกิดข้อผิดพลาดในการส่ง Tracking:', error);
   }
 };
+
+const saveResumeTimeOnLeave = () => {
+  if (isLeaving) return; 
+  isLeaving = true; 
+
+  const currentTime = videoPlayer.value ? videoPlayer.value.currentTime : 0;
+  
+  fetch('http://localhost:3000/progress', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ 
+      videoId: currentVideoId, 
+      userId: 'user-001', 
+      eventType: 'LEAVE_PAGE', 
+      currentTime: Math.floor(currentTime) 
+    }),
+    keepalive: true 
+  });
+};
+
 
 // 1. ดักจับเวลาทุกๆ 5 วินาที (ขณะเล่น)
 const handleTimeUpdate = (event) => {
