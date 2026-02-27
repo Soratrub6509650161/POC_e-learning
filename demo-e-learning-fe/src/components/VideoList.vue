@@ -69,7 +69,6 @@ const fetchVideos = async () => {
 const goToPlayer = (videoId) => {
   router.push(`/video/${videoId}`);
   console.log('เตรียมไปหน้า Player ของ ID:', videoId);
-  alert(`ระบบรับทราบ! กำลังพาท่านไปดูวิดีโอรหัส:\n${videoId}`);
 };
 
 

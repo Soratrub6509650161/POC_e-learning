@@ -21,7 +21,11 @@
           ref="videoPlayer" 
           controls 
           class="w-full h-full"
-          poster="https://placehold.co/1920x1080?text=Loading+Video..."
+          @loadedmetadata="jumpToResumeTime"  @timeupdate="handleTimeUpdate"
+          @seeked="handleSeeked"
+          @play="handlePlay"
+          @pause="handlePause"
+          @ended="handleEnded"
         ></video>
       </div>
       
@@ -45,6 +49,7 @@ const router = useRouter();
 const video = ref(null);
 const loading = ref(true);
 const error = ref(null);
+const resumeTime = ref(0);
 const videoPlayer = ref(null); 
 let hls = null; 
 
@@ -60,6 +65,8 @@ const fetchVideoData = async () => {
 
     video.value = data;
 
+    loading.value = false;
+
     await nextTick();
     setupPlayer(data.streamUrl);
 
@@ -67,6 +74,28 @@ const fetchVideoData = async () => {
     error.value = err.message;
   } finally {
     loading.value = false;
+  }
+};
+
+const fetchResumeTime = async () => {
+  try {
+    const response = await fetch(`http://localhost:3000/api/video/resume?videoId=${route.params.id}&userId=user-001`);
+    if (response.ok) {
+      const savedTime = await response.json();
+      resumeTime.value = Number(savedTime) || 0;
+      console.log(`ดึงเวลาที่ค้างไว้สำเร็จ: ${resumeTime.value} วินาที`);
+    }
+  } catch (err) {
+    console.error('ไม่สามารถดึงเวลาที่ดูค้างไว้ได้', err);
+  }
+};
+
+const jumpToResumeTime = () => {
+  if (videoPlayer.value && resumeTime.value > 0) {
+    videoPlayer.value.currentTime = resumeTime.value;
+    console.log(`⏩ กรอวิดีโอไปที่เวลา ${resumeTime.value} วินาที`);
+    
+    // videoPlayer.value.play(); 
   }
 };
 
@@ -90,7 +119,8 @@ const setupPlayer = (streamUrl) => {
 };
 
 // ทำงานตอนเปิดหน้านี้
-onMounted(() => {
+onMounted(async() => {
+  await fetchResumeTime();
   fetchVideoData();
 });
 
@@ -100,4 +130,71 @@ onBeforeUnmount(() => {
     hls.destroy(); // ล้างข้อมูลทิ้ง คืนเมมโมรี่ให้เครื่อง
   }
 });
+
+
+// --- เริ่มต้นส่วนระบบ Tracking ---
+const lastTrackedTime = ref(0); // เก็บเวลาที่ยิง API ไปล่าสุด
+
+// ฟังก์ชันหลักสำหรับส่งข้อมูล 
+const sendTrackingData = async (eventType, currentTime) => {
+  const timeInSeconds = Math.floor(currentTime);
+  
+  console.log(`📡 [Tracking: ${eventType}] ส่งข้อมูลไป Backend -> เวลาปัจจุบัน: ${timeInSeconds} วินาที`);
+  
+  try {
+    
+    const response = await fetch('http://localhost:3000/progress', {
+      method: 'POST', 
+      headers: { 
+        'Content-Type': 'application/json' 
+      },
+      body: JSON.stringify({ 
+        videoId: route.params.id, 
+        userId: 'user-001', // Mock userId ไปก่อน (ของจริงอาจจะดึงจาก Token/LocalStorage)
+        eventType: eventType, 
+        currentTime: timeInSeconds 
+      })
+    });
+
+    if (!response.ok) {
+      console.error('❌ ส่ง Tracking ไม่สำเร็จ');
+    }
+  } catch (error) {
+    
+    console.error('❌ เกิดข้อผิดพลาดในการส่ง Tracking:', error);
+  }
+};
+// 1. ดักจับเวลาทุกๆ 5 วินาที (ขณะเล่น)
+const handleTimeUpdate = (event) => {
+  const currentTime = event.target.currentTime;
+  if (Math.abs(currentTime - lastTrackedTime.value) >= 5) {
+    sendTrackingData('INTERVAL_5_SEC', currentTime);
+    lastTrackedTime.value = currentTime; // อัปเดตเวลาล่าสุดเพื่อเริ่มนับ 5 วิใหม่
+  }
+};
+
+// 2. ดักจับตอน User กดกรอคลิป (ปล่อยเมาส์จากแถบเวลา)
+const handleSeeked = (event) => {
+  const currentTime = event.target.currentTime;
+  sendTrackingData('SEEKED', currentTime);
+  lastTrackedTime.value = currentTime; 
+};
+
+// 3. ดักจับตอนกด Play, Pause และตอนวิดีโอเล่นจบ
+const handlePlay = (event) => sendTrackingData('PLAY', event.target.currentTime);
+const handlePause = (event) => sendTrackingData('PAUSE', event.target.currentTime);
+const handleEnded = (event) => sendTrackingData('ENDED', event.target.currentTime);
+
+// 4. ดักจับตอน "เปลี่ยนหน้าเว็บ" หรือ "กดปุ่มย้อนกลับ"
+onBeforeUnmount(() => {
+  if (videoPlayer.value) {
+    // ส่งข้อมูลครั้งสุดท้ายก่อน Component จะถูกทำลาย
+    sendTrackingData('LEAVE_PAGE', videoPlayer.value.currentTime);
+  }
+  
+  if (hls) {
+    hls.destroy(); 
+  }
+});
+// --- 📍 สิ้นสุดส่วนระบบ Tracking ---
 </script>
