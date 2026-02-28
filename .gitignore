@@ -34,18 +34,6 @@ dist_electron/
 .eslintcache
 .stylelintcache
 
-
-# ไฟล์จำลอง และ โฟลเดอร์ Uploads 
-
-uploads/
-temp/
-logs/
-*.mp4
-*.m3u8
-*.ts
-*.log
-
-
 # OS & Editor (ไฟล์ขยะจากระบบปฏิบัติการและโปรแกรม)
 
 .DS_Store
