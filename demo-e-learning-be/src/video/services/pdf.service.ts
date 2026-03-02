@@ -33,15 +33,21 @@ export class PdfService {
     try {
       console.log(`กำลังแปลงสไลด์ของวิดีโอ ${videoId}...`);
 
-      const results = await convert.bulk(-1, { responseType: 'image' }); // เปลี่ยนตรงนี้ให้เป็น Single quote ด้วยเพื่อความสม่ำเสมอ
+      const results = await convert.bulk(-1, { responseType: 'image' });
 
       console.log('แปลงไฟล์สำเร็จ!');
 
-      return results.map((result) => ({
+      const slidesData = results.map((result) => ({
         slideNumber: result.page,
         imageUrl: `http://localhost:3000/static/slides/${videoId}/${result.name}`,
         showAtTime: 0,
       }));
+
+      // บันทึกข้อมูลสไลด์ลงไฟล์ JSON ไว้ให้ FE ดึงใช้ภายหลัง
+      const configPath = path.join(outputDirectory, 'slides.json');
+      fs.writeFileSync(configPath, JSON.stringify(slidesData, null, 2), 'utf8');
+
+      return slidesData;
     } catch (error) {
       console.error('Error converting PDF:', error);
       throw new Error('Failed to convert PDF to images');

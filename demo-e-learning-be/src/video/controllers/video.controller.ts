@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Param, Post, Body} from '@nestjs/common';
+import { Controller, Get, Query, Param, Post, Body, Delete } from '@nestjs/common';
 import { StorageService } from '../services/storage.service';
 import { UseInterceptors, UploadedFile } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -34,6 +34,10 @@ export class VideoController {
     private readonly storageService: StorageService,
     private readonly pdfService: PdfService 
   ) {}
+
+  private getSlidesConfigPath(videoId: string) {
+    return path.join(process.cwd(), 'uploads', 'slides', videoId, 'slides.json');
+  }
 
   @Get('upload-url')
   async getUploadUrl(@Query('fileName') fileName: string) {
@@ -130,16 +134,109 @@ export class VideoController {
     }
   }
 
+  @Get(':id/slides')
+  async getSlides(@Param('id') videoId: string) {
+    const configPath = this.getSlidesConfigPath(videoId);
 
+    if (!fs.existsSync(configPath)) {
+      // กรณียังไม่มีไฟล์ config (อัปโหลดสไลด์ไว้แล้วในอดีตสมัย POC เดิม)
+      // ให้ลองอ่านไฟล์รูปจากโฟลเดอร์แล้วสร้างข้อมูล slides ให้เอง
+      const slidesDir = path.join(process.cwd(), 'uploads', 'slides', videoId);
+      if (!fs.existsSync(slidesDir)) {
+        return { slides: [] };
+      }
 
+      try {
+        const files = fs.readdirSync(slidesDir)
+          .filter((name) => name.toLowerCase().endsWith('.png') || name.toLowerCase().endsWith('.jpg'))
+          .sort();
 
+        const slides = files.map((fileName, index) => {
+          // พยายามดึงเลขหน้าจากชื่อไฟล์ เช่น slide.1.png → 1
+          const match = fileName.match(/(\d+)/);
+          const page = match ? parseInt(match[1], 10) : index + 1;
 
+          return {
+            slideNumber: page,
+            imageUrl: `http://localhost:3000/static/slides/${videoId}/${fileName}`,
+            showAtTime: 0,
+          };
+        });
 
+        // สร้างไฟล์ config ทิ้งไว้ให้รอบต่อไปใช้ได้เลย
+        fs.writeFileSync(configPath, JSON.stringify(slides, null, 2), 'utf8');
 
+        return { slides };
+      } catch (error) {
+        console.error('Error building slides from directory:', error);
+        return { slides: [] };
+      }
+    }
 
+    try {
+      const raw = fs.readFileSync(configPath, 'utf8');
+      const slides = JSON.parse(raw);
+      return { slides };
+    } catch (error) {
+      console.error('Error reading slides config:', error);
+      return { slides: [] };
+    }
+  }
 
+  @Post(':id/slides/config')
+  async saveSlidesConfig(
+    @Param('id') videoId: string,
+    @Body('slides') slides: any[],
+  ) {
+    if (!Array.isArray(slides)) {
+      return { error: 'slides must be an array' };
+    }
 
+    const outputDir = path.join(process.cwd(), 'uploads', 'slides', videoId);
+    if (!fs.existsSync(outputDir)) {
+      fs.mkdirSync(outputDir, { recursive: true });
+    }
 
+    const configPath = this.getSlidesConfigPath(videoId);
 
+    try {
+      fs.writeFileSync(configPath, JSON.stringify(slides, null, 2), 'utf8');
+      return { message: 'Slides config saved', slides };
+    } catch (error) {
+      console.error('Error writing slides config:', error);
+      return { error: 'Failed to save slides config' };
+    }
+  }
+
+  @Delete(':id/slides')
+  async deleteSlides(@Param('id') videoId: string) {
+    const slidesDir = path.join(process.cwd(), 'uploads', 'slides', videoId);
+
+    try {
+      if (fs.existsSync(slidesDir)) {
+        fs.rmSync(slidesDir, { recursive: true, force: true });
+      }
+      return { message: 'Slides deleted' };
+    } catch (error) {
+      console.error('Error deleting slides directory:', error);
+      return { error: 'Failed to delete slides' };
+    }
+  }
+
+  // สำรอง: เผื่อบางที่เรียกใช้แบบ POST แทน DELETE
+  @Post(':id/slides/delete')
+  async deleteSlidesByPost(@Param('id') videoId: string) {
+    const slidesDir = path.join(process.cwd(), 'uploads', 'slides', videoId);
+
+    try {
+      if (fs.existsSync(slidesDir)) {
+        fs.rmSync(slidesDir, { recursive: true, force: true });
+      }
+      return { message: 'Slides deleted' };
+    } catch (error) {
+      console.error('Error deleting slides directory (POST):', error);
+      return { error: 'Failed to delete slides' };
+    }
+  }
 
 }
