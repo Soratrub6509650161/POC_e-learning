@@ -13,9 +13,9 @@
       เกิดข้อผิดพลาด: {{ error }}
     </div>
 
-    <div v-else class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+    <div v-else class="grid grid-cols-1 lg:grid-cols-2 gap-6">
       
-      <div class="lg:col-span-8 bg-white p-4 rounded-xl shadow-lg border border-gray-100">
+      <div class="bg-white p-4 rounded-xl shadow-lg border border-gray-100">
         <h1 class="text-2xl font-bold text-gray-800 mb-4">{{ video.title }}</h1>
         
         <div class="bg-black rounded-lg overflow-hidden aspect-video shadow-inner">
@@ -31,57 +31,67 @@
             @ended="handleEnded"
           ></video>
         </div>
-        
-        <div class="mt-4 text-gray-500 text-sm flex justify-between">
-          <span>Video ID: <span class="font-mono bg-gray-100 px-2 py-1 rounded">{{ video.id }}</span></span>
-          <span>ความยาว: {{ video.duration || 'ไม่ระบุ' }}</span>
-        </div>
 
-        <div class="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
-          <h3 class="font-bold text-blue-800 mb-2">🛠️ สำหรับผู้สอน: จัดการสไลด์</h3>
-          <div class="flex items-center gap-4">
-            <input type="file" @change="handleFileUpload" accept="application/pdf" class="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700"/>
-            <span v-if="isUploading" class="text-blue-600 animate-pulse">กำลังประมวลผล PDF...</span>
+        <!-- เครื่องมือสำหรับผู้สอน แสดงเฉพาะเมื่อเปิดโหมดซิงค์ -->
+        <div v-if="isSyncEnabled" class="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
+          <h3 class="font-bold text-blue-800 mb-2">🛠️ ตั้งค่าสไลด์สำหรับซิงค์กับวิดีโอ</h3>
+          <div class="flex items-center gap-4 mb-3">
+            <input
+              type="file"
+              @change="handleFileUpload"
+              accept="application/pdf"
+              class="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700"
+            />
+            <span v-if="isUploading" class="text-blue-600 animate-pulse text-sm">กำลังประมวลผล PDF...</span>
           </div>
+          <p class="text-xs text-gray-600">
+            อัปโหลดไฟล์สไลด์แบบ PDF เพื่อแปลงเป็นภาพ แล้วใช้ปุ่ม Mark ในรายการสไลด์ด้านขวาเพื่อกำหนดเวลาให้แต่ละหน้า
+          </p>
         </div>
       </div>
 
-      <div class="lg:col-span-4 space-y-4">
+      <div class="space-y-4">
         <div class="bg-white p-4 rounded-xl shadow-lg border border-gray-100 sticky top-6">
-          <h2 class="text-lg font-bold text-gray-800 mb-4">🖼️ สไลด์ประกอบการเรียน</h2>
-          
-          <div v-if="displaySlide" class="border-2 border-blue-500 rounded-lg overflow-hidden shadow-md mb-4 relative">
-            <img :src="displaySlide.imageUrl" class="w-full object-contain bg-gray-50" />
-            
-            <div class="bg-blue-600 text-white flex justify-between items-center py-1.5 px-3 text-sm font-bold">
-              <span>สไลด์หน้าที่ {{ displaySlide.slideNumber }}</span>
-              <span v-if="selectedSlideNumber" class="bg-yellow-400 text-yellow-900 px-2 rounded text-xs shadow-sm">กำลังพรีวิว 👀</span>
-              <span v-else class="bg-green-400 text-green-900 px-2 rounded text-xs shadow-sm">กำลังซิงค์ 🟢</span>
-            </div>
-
-            <button v-if="selectedSlideNumber" @click="clearSelection" class="absolute top-2 right-2 bg-gray-900 bg-opacity-70 text-white text-xs px-2 py-1 rounded hover:bg-opacity-100 transition">
-              ✖ กลับโหมดซิงค์ปกติ
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-lg font-bold text-gray-800">🖼️ สไลด์ประกอบการเรียน</h2>
+            <!-- ปุ่มโหมดซิงค์สำหรับควบคุมพฤติกรรมสไลด์ -->
+            <button
+              @click="toggleSyncMode"
+              class="text-xs px-2 py-1 rounded-full border flex items-center gap-1"
+              :class="isSyncEnabled ? 'bg-green-100 text-green-700 border-green-300' : 'bg-gray-100 text-gray-500 border-gray-300'"
+            >
+              <span class="w-2 h-2 rounded-full" :class="isSyncEnabled ? 'bg-green-500' : 'bg-gray-400'"></span>
+              <span>{{ isSyncEnabled ? 'Sync On' : 'Sync Off' }}</span>
             </button>
           </div>
 
-          <div class="max-h-[400px] overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-            <div
-              v-for="slide in slides"
-              :key="slide.slideNumber"
-              @click="selectSlide(slide)"
-              :class="[
-                'p-2 rounded border flex items-center gap-3 transition-all cursor-pointer hover:shadow-md',
-                displaySlide?.slideNumber === slide.slideNumber
-                  ? 'border-blue-500 bg-blue-50 shadow-sm'
-                  : 'border-gray-200 hover:bg-gray-50',
-              ]"
-            >
-              <img :src="slide.imageUrl" class="w-16 h-10 object-cover rounded border" />
-              <div class="flex-1 min-w-0">
-                <p class="text-xs font-bold text-gray-700">หน้า {{ slide.slideNumber }}</p>
-                <p class="text-sm font-mono text-gray-500">{{ formatTime(slide.showAtTime) }}</p>
-              </div>
-              <div class="flex items-center gap-2">
+          <div v-if="displaySlide" class="border-2 border-blue-500 rounded-lg overflow-hidden shadow-md mb-4 relative">
+            <img :src="displaySlide.imageUrl" class="w-full object-contain bg-gray-50" />
+            
+            <div class="bg-black bg-opacity-60 text-white flex justify-center items-center py-1.5 px-3 text-xs font-semibold">
+              <span>สไลด์หน้าที่ {{ displaySlide.slideNumber }}</span>
+            </div>
+          </div>
+
+          <!-- โหมดตั้งค่าแสดงรายการสไลด์ + ปุ่ม Mark/บันทึก เฉพาะเมื่อเปิดซิงค์ -->
+          <div v-if="isSyncEnabled">
+            <div class="max-h-[400px] overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+              <div
+                v-for="slide in slides"
+                :key="slide.slideNumber"
+                @click="selectSlide(slide)"
+                :class="[
+                  'p-2 rounded border flex items-center gap-3 transition-all cursor-pointer hover:shadow-md',
+                  displaySlide?.slideNumber === slide.slideNumber
+                    ? 'border-blue-500 bg-blue-50 shadow-sm'
+                    : 'border-gray-200 hover:bg-gray-50',
+                ]"
+              >
+                <img :src="slide.imageUrl" class="w-16 h-10 object-cover rounded border" />
+                <div class="flex-1 min-w-0">
+                  <p class="text-xs font-bold text-gray-700">หน้า {{ slide.slideNumber }}</p>
+                  <p class="text-sm font-mono text-gray-500">{{ formatTime(slide.showAtTime) }}</p>
+                </div>
                 <button
                   @click.stop="markSlideTime(slide)"
                   class="bg-blue-100 text-blue-700 p-1.5 rounded hover:bg-blue-600 hover:text-white transition-colors"
@@ -89,33 +99,26 @@
                 >
                   📍 Mark
                 </button>
-                <button
-                  @click.stop="deleteSlide(slide)"
-                  class="bg-red-100 text-red-700 p-1.5 rounded hover:bg-red-600 hover:text-white transition-colors"
-                  title="ลบสไลด์หน้านี้ออกจากการซิงค์"
-                >
-                  🗑
-                </button>
+              </div>
+              <div v-if="slides.length === 0" class="text-center py-10 text-gray-400 text-sm">
+                ยังไม่มีสไลด์ อัปโหลด PDF เพื่อเริ่มใช้งาน
               </div>
             </div>
-            <div v-if="slides.length === 0" class="text-center py-10 text-gray-400 text-sm">
-              ยังไม่มีสไลด์ อัปโหลด PDF เพื่อเริ่มใช้งาน
+
+            <div v-if="slides.length > 0" class="mt-4 space-y-2">
+              <button
+                @click="saveSlideConfig"
+                class="w-full bg-green-600 text-white py-2 rounded-lg font-bold hover:bg-green-700 transition-colors shadow-md"
+              >
+                บันทึกการตั้งค่าทั้งหมด
+              </button>
+              <button
+                @click="deleteAllSlides"
+                class="w-full bg-red-100 text-red-700 py-2 rounded-lg font-bold hover:bg-red-200 transition-colors shadow-sm"
+              >
+                ลบสไลด์ทั้งหมดสำหรับวิดีโอนี้
+              </button>
             </div>
-          </div>
-          
-          <div v-if="slides.length > 0" class="mt-4 space-y-2">
-            <button
-              @click="saveSlideConfig"
-              class="w-full bg-green-600 text-white py-2 rounded-lg font-bold hover:bg-green-700 transition-colors shadow-md"
-            >
-              บันทึกการตั้งค่าทั้งหมด
-            </button>
-            <button
-              @click="deleteAllSlides"
-              class="w-full bg-red-100 text-red-700 py-2 rounded-lg font-bold hover:bg-red-200 transition-colors shadow-sm"
-            >
-              ลบสไลด์ทั้งหมดสำหรับวิดีโอนี้
-            </button>
           </div>
         </div>
       </div>
@@ -146,6 +149,7 @@ let hls = null;
 const slides = ref([]); 
 const currentTimeValue = ref(0);
 const isUploading = ref(false);
+const isSyncEnabled = ref(false); // โหมดซิงค์สไลด์กับวิดีโอ (ค่าเริ่มต้น: ปิด)
 
 // --- 1. การดึงข้อมูลวิดีโอและระบบ Resume ---
 const fetchVideoData = async () => {
@@ -223,7 +227,7 @@ const handleFileUpload = async (event) => {
 // --- 3. ระบบซิงค์เวลาและสไลด์ (โหมดพรีวิว + ออโต้) ---
 const selectedSlideNumber = ref(null); // ตัวแปรเก็บหน้าที่เราคลิกเพื่อพรีวิว
 
-// หน้าที่ควรจะแสดงตามเวลาวิดีโอ (Auto Sync)
+// หน้าที่ควรจะแสดงตามเวลาวิดีโอ (Auto Sync ตลอดเวลา)
 const autoSyncSlide = computed(() => {
   if (slides.value.length === 0) return null;
   const pastSlides = slides.value
@@ -234,10 +238,16 @@ const autoSyncSlide = computed(() => {
 
 // หน้าที่จะแสดงบนจอใหญ่จริงๆ (ถ้ามี selected ให้แสดง selected ถ้าไม่มีให้แสดง auto)
 const displaySlide = computed(() => {
-  if (selectedSlideNumber.value) {
-    return slides.value.find(s => s.slideNumber === selectedSlideNumber.value) || autoSyncSlide.value;
+  if (!slides.value || slides.value.length === 0) {
+    return null;
   }
-  return autoSyncSlide.value;
+
+  if (selectedSlideNumber.value) {
+    const selected = slides.value.find(s => s.slideNumber === selectedSlideNumber.value);
+    if (selected) return selected;
+  }
+
+  return autoSyncSlide.value || slides.value[0];
 });
 
 // ฟังก์ชันเมื่อคลิกที่แถบสไลด์เพื่อพรีวิว
@@ -250,30 +260,13 @@ const clearSelection = () => {
   selectedSlideNumber.value = null;
 };
 
-// ฟังก์ชันบันทึกเวลา
+// ฟังก์ชันบันทึกเวลา (กด Mark ซ้ำจะเขียนทับเวลาเดิมได้)
 const markSlideTime = (slide) => {
   if (videoPlayer.value) {
     slide.showAtTime = Math.floor(videoPlayer.value.currentTime);
     slides.value.sort((a, b) => a.showAtTime - b.showAtTime);
-    
-    // พอบันทึกเสร็จ ให้ล้างค่า Preview ทิ้ง เพื่อให้จอใหญ่กลับไปดูแบบ Auto Sync
     selectedSlideNumber.value = null;
   }
-};
-
-const deleteSlide = async (slide) => {
-  const confirmDelete = window.confirm(`ยืนยันลบสไลด์หน้าที่ ${slide.slideNumber} ออกจากการซิงค์หรือไม่?`);
-  if (!confirmDelete) return;
-
-  slides.value = slides.value.filter((s) => s.slideNumber !== slide.slideNumber);
-
-  // ถ้าสไลด์ที่ลบเป็นสไลด์ที่กำลังพรีวิวอยู่ ให้เคลียร์ selection ทิ้ง
-  if (selectedSlideNumber.value === slide.slideNumber) {
-    selectedSlideNumber.value = null;
-  }
-
-  // บันทึก config ใหม่กลับไปที่ backend ทันที
-  await saveSlideConfig();
 };
 
 const formatTime = (seconds) => {
@@ -315,6 +308,15 @@ const fetchSlides = async () => {
     }
   } catch (err) {
     console.error('ไม่สามารถดึงข้อมูลสไลด์ได้', err);
+  }
+};
+
+const toggleSyncMode = async () => {
+  isSyncEnabled.value = !isSyncEnabled.value;
+
+  // ถ้ากดเปิดโหมดซิงค์ แต่ยังไม่มีสไลด์ใน state ให้ลองดึงจาก backend อีกรอบ
+  if (isSyncEnabled.value && slides.value.length === 0) {
+    await fetchSlides();
   }
 };
 

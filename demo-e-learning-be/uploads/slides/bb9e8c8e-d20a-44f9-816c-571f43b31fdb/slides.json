@@ -1,0 +1,17 @@
+[
+  {
+    "slideNumber": 1,
+    "imageUrl": "http://localhost:3000/static/slides/bb9e8c8e-d20a-44f9-816c-571f43b31fdb/slide.1.png",
+    "showAtTime": 0
+  },
+  {
+    "slideNumber": 2,
+    "imageUrl": "http://localhost:3000/static/slides/bb9e8c8e-d20a-44f9-816c-571f43b31fdb/slide.2.png",
+    "showAtTime": 12
+  },
+  {
+    "slideNumber": 3,
+    "imageUrl": "http://localhost:3000/static/slides/bb9e8c8e-d20a-44f9-816c-571f43b31fdb/slide.3.png",
+    "showAtTime": 26
+  }
+]
