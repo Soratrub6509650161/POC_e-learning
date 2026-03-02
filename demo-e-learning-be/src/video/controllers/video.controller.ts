@@ -1,5 +1,11 @@
 import { Controller, Get, Query, Param, Post, Body} from '@nestjs/common';
 import { StorageService } from '../services/storage.service';
+import { UseInterceptors, UploadedFile } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { PdfService } from '../services/pdf.service';
+import * as fs from 'fs';
+import * as path from 'path';
 
 @Controller('video')
 export class VideoController {
@@ -24,7 +30,10 @@ export class VideoController {
     }
   ];
 
-  constructor(private readonly storageService: StorageService) {}
+  constructor(
+    private readonly storageService: StorageService,
+    private readonly pdfService: PdfService 
+  ) {}
 
   @Get('upload-url')
   async getUploadUrl(@Query('fileName') fileName: string) {
@@ -82,7 +91,44 @@ export class VideoController {
     return { message: 'Ignored' };
   }
 
+  @Post(':id/slides/upload')
+  @UseInterceptors(FileInterceptor('file', {
+    storage: diskStorage({
+      destination: (req, file, cb) => {
+        // สร้างโฟลเดอร์เก็บ PDF ต้นฉบับ (uploads/pdf)
+        const uploadPath = path.join(process.cwd(), 'uploads', 'pdf');
+        if (!fs.existsSync(uploadPath)) {
+          fs.mkdirSync(uploadPath, { recursive: true });
+        }
+        cb(null, uploadPath);
+      },
+      filename: (req, file, cb) => {
+        // ตั้งชื่อไฟล์ใหม่เพื่อป้องกันชื่อซ้ำ
+        cb(null, `${Date.now()}-${file.originalname}`);
+      }
+    })
+  }))
+  async uploadSlides(
+    @Param('id') videoId: string, 
+    @UploadedFile() file: Express.Multer.File
+  ) {
+    if (!file) {
+      return { error: 'กรุณาอัปโหลดไฟล์ PDF' };
+    }
 
+    try {
+      // โยนไฟล์ PDF ไปให้ PdfService จัดการแปลงเป็นรูป
+      const slidesData = await this.pdfService.convertPdfToImages(file.path, videoId);
+
+      return {
+        message: 'อัปโหลดและแปลงสไลด์สำเร็จ!',
+        slides: slidesData
+      };
+    } catch (err) {
+      console.error(err);
+      return { error: 'เกิดข้อผิดพลาดในการแปลงไฟล์ PDF' };
+    }
+  }
 
 
 
