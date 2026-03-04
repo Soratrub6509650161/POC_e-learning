@@ -13,116 +13,122 @@
       เกิดข้อผิดพลาด: {{ error }}
     </div>
 
-    <div v-else class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      
+    <div v-else>
       <div class="bg-white p-4 rounded-xl shadow-lg border border-gray-100">
         <h1 class="text-2xl font-bold text-gray-800 mb-4">{{ video.title }}</h1>
-        
-        <div class="bg-black rounded-lg overflow-hidden aspect-video shadow-inner">
-          <video 
-            ref="videoPlayer" 
-            controls 
-            class="w-full h-full"
-            @loadedmetadata="jumpToResumeTime"  
-            @timeupdate="onTimeUpdateWrapper"
-            @seeked="handleSeeked"
-            @play="handlePlay"
-            @pause="handlePause"
-            @ended="handleEnded"
-          ></video>
-        </div>
 
-        <!-- เครื่องมือสำหรับผู้สอน แสดงเฉพาะเมื่อเปิดโหมดซิงค์ -->
-        <div v-if="isSyncEnabled" class="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
-          <h3 class="font-bold text-blue-800 mb-2">🛠️ ตั้งค่าสไลด์สำหรับซิงค์กับวิดีโอ</h3>
-          <div class="flex items-center gap-4 mb-3">
-            <input
-              type="file"
-              @change="handleFileUpload"
-              accept="application/pdf"
-              class="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700"
-            />
-            <span v-if="isUploading" class="text-blue-600 animate-pulse text-sm">กำลังประมวลผล PDF...</span>
-          </div>
-          <p class="text-xs text-gray-600">
-            อัปโหลดไฟล์สไลด์แบบ PDF เพื่อแปลงเป็นภาพ แล้วใช้ปุ่ม Mark ในรายการสไลด์ด้านขวาเพื่อกำหนดเวลาให้แต่ละหน้า
-          </p>
-        </div>
-      </div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+          <!-- คอลัมน์ฝั่งวิดีโอ -->
+          <div class="flex flex-col h-full">
+            <div class="bg-black rounded-lg overflow-hidden aspect-video shadow-inner">
+              <video 
+                ref="videoPlayer" 
+                controls 
+                class="w-full h-full"
+                @loadedmetadata="jumpToResumeTime"  
+                @timeupdate="onTimeUpdateWrapper"
+                @seeked="handleSeeked"
+                @play="handlePlay"
+                @pause="handlePause"
+                @ended="handleEnded"
+              ></video>
+            </div>
 
-      <div class="space-y-4">
-        <div class="bg-white p-4 rounded-xl shadow-lg border border-gray-100 sticky top-6">
-          <div class="flex items-center justify-between mb-3">
-            <h2 class="text-lg font-bold text-gray-800">🖼️ สไลด์ประกอบการเรียน</h2>
-            <!-- ปุ่มโหมดซิงค์สำหรับควบคุมพฤติกรรมสไลด์ -->
-            <button
-              @click="toggleSyncMode"
-              class="text-xs px-2 py-1 rounded-full border flex items-center gap-1"
-              :class="isSyncEnabled ? 'bg-green-100 text-green-700 border-green-300' : 'bg-gray-100 text-gray-500 border-gray-300'"
-            >
-              <span class="w-2 h-2 rounded-full" :class="isSyncEnabled ? 'bg-green-500' : 'bg-gray-400'"></span>
-              <span>{{ isSyncEnabled ? 'Sync On' : 'Sync Off' }}</span>
-            </button>
-          </div>
-
-          <div v-if="displaySlide" class="border-2 border-blue-500 rounded-lg overflow-hidden shadow-md mb-4 relative">
-            <img :src="displaySlide.imageUrl" class="w-full object-contain bg-gray-50" />
-            
-            <div class="bg-black bg-opacity-60 text-white flex justify-center items-center py-1.5 px-3 text-xs font-semibold">
-              <span>สไลด์หน้าที่ {{ displaySlide.slideNumber }}</span>
+            <!-- เครื่องมือสำหรับผู้สอน แสดงเฉพาะเมื่อเปิดโหมดซิงค์ -->
+            <div v-if="isSyncEnabled" class="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
+              <h3 class="font-bold text-blue-800 mb-2">🛠️ ตั้งค่าสไลด์สำหรับซิงค์กับวิดีโอ</h3>
+              <div class="flex items-center gap-4 mb-3">
+                <input
+                  type="file"
+                  @change="handleFileUpload"
+                  accept="application/pdf"
+                  class="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700"
+                />
+                <span v-if="isUploading" class="text-blue-600 animate-pulse text-sm">กำลังประมวลผล PDF...</span>
+              </div>
+              <p class="text-xs text-gray-600">
+                อัปโหลดไฟล์สไลด์แบบ PDF เพื่อแปลงเป็นภาพ แล้วใช้ปุ่ม Mark ในรายการสไลด์ด้านขวาเพื่อกำหนดเวลาให้แต่ละหน้า
+              </p>
             </div>
           </div>
 
-          <!-- โหมดตั้งค่าแสดงรายการสไลด์ + ปุ่ม Mark/บันทึก เฉพาะเมื่อเปิดซิงค์ -->
-          <div v-if="isSyncEnabled">
-            <div class="max-h-[400px] overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-              <div
-                v-for="slide in slides"
-                :key="slide.slideNumber"
-                @click="selectSlide(slide)"
-                :class="[
-                  'p-2 rounded border flex items-center gap-3 transition-all cursor-pointer hover:shadow-md',
-                  displaySlide?.slideNumber === slide.slideNumber
-                    ? 'border-blue-500 bg-blue-50 shadow-sm'
-                    : 'border-gray-200 hover:bg-gray-50',
-                ]"
-              >
-                <img :src="slide.imageUrl" class="w-16 h-10 object-cover rounded border" />
-                <div class="flex-1 min-w-0">
-                  <p class="text-xs font-bold text-gray-700">หน้า {{ slide.slideNumber }}</p>
-                  <p class="text-sm font-mono text-gray-500">{{ formatTime(slide.showAtTime) }}</p>
+          <!-- คอลัมน์ฝั่งสไลด์ -->
+          <div class="flex flex-col h-full">
+            <div class="rounded-xl border border-gray-100 h-full flex flex-col">
+      
+              <div v-if="displaySlide" class="border-2 border-blue-500 rounded-lg overflow-hidden shadow-md mb-4 relative aspect-video">
+                <Transition name="slide-fade" mode="out-in">
+                  <img :key="displaySlide.slideNumber" :src="displaySlide.imageUrl" class="w-full h-full object-contain bg-gray-50" />
+                </Transition>
+                
+                <div class="bg-black bg-opacity-60 text-white flex justify-center items-center py-1.5 px-3 text-xs font-semibold">
+                  <span>สไลด์หน้าที่ {{ displaySlide.slideNumber }}</span>
                 </div>
+              </div>
+
+              <div class="flex items-center justify-between mb-3">                
+                <!-- ปุ่มโหมดซิงค์สำหรับควบคุมพฤติกรรมสไลด์ -->
                 <button
-                  @click.stop="markSlideTime(slide)"
-                  class="bg-blue-100 text-blue-700 p-1.5 rounded hover:bg-blue-600 hover:text-white transition-colors"
-                  title="บันทึกเวลาปัจจุบันของวิดีโอลงสไลด์นี้"
+                  @click="toggleSyncMode"
+                  class="ml-auto text-xs px-2 py-1 rounded-full border flex items-center gap-1"
+                  :class="isSyncEnabled ? 'bg-green-100 text-green-700 border-green-300' : 'bg-gray-100 text-gray-500 border-gray-300'"
                 >
-                  📍 Mark
+                  <span class="w-2 h-2 rounded-full" :class="isSyncEnabled ? 'bg-green-500' : 'bg-gray-400'"></span>
+                  <span>{{ isSyncEnabled ? 'Sync On' : 'Sync Off' }}</span>
                 </button>
               </div>
-              <div v-if="slides.length === 0" class="text-center py-10 text-gray-400 text-sm">
-                ยังไม่มีสไลด์ อัปโหลด PDF เพื่อเริ่มใช้งาน
-              </div>
-            </div>
 
-            <div v-if="slides.length > 0" class="mt-4 space-y-2">
-              <button
-                @click="saveSlideConfig"
-                class="w-full bg-green-600 text-white py-2 rounded-lg font-bold hover:bg-green-700 transition-colors shadow-md"
-              >
-                บันทึกการตั้งค่าทั้งหมด
-              </button>
-              <button
-                @click="deleteAllSlides"
-                class="w-full bg-red-100 text-red-700 py-2 rounded-lg font-bold hover:bg-red-200 transition-colors shadow-sm"
-              >
-                ลบสไลด์ทั้งหมดสำหรับวิดีโอนี้
-              </button>
+              <!-- โหมดตั้งค่าแสดงรายการสไลด์ + ปุ่ม Mark/บันทึก เฉพาะเมื่อเปิดซิงค์ -->
+              <div v-if="isSyncEnabled">
+                <div class="max-h-[400px] overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                  <div
+                    v-for="slide in slides"
+                    :key="slide.slideNumber"
+                    @click="selectSlide(slide)"
+                    :class="[
+                      'p-2 rounded border flex items-center gap-3 transition-all cursor-pointer hover:shadow-md',
+                      displaySlide?.slideNumber === slide.slideNumber
+                        ? 'border-blue-500 bg-blue-50 shadow-sm'
+                        : 'border-gray-200 hover:bg-gray-50',
+                    ]"
+                  >
+                    <img :src="slide.imageUrl" class="w-16 h-10 object-cover rounded border" />
+                    <div class="flex-1 min-w-0">
+                      <p class="text-xs font-bold text-gray-700">หน้า {{ slide.slideNumber }}</p>
+                      <p class="text-sm font-mono text-gray-500">{{ formatTime(slide.showAtTime) }}</p>
+                    </div>
+                    <button
+                      @click.stop="markSlideTime(slide)"
+                      class="bg-blue-100 text-blue-700 p-1.5 rounded hover:bg-blue-600 hover:text-white transition-colors"
+                      title="บันทึกเวลาปัจจุบันของวิดีโอลงสไลด์นี้"
+                    >
+                      📍 Mark
+                    </button>
+                  </div>
+                  <div v-if="slides.length === 0" class="text-center py-10 text-gray-400 text-sm">
+                    ยังไม่มีสไลด์ อัปโหลด PDF เพื่อเริ่มใช้งาน
+                  </div>
+                </div>
+
+                <div v-if="slides.length > 0" class="mt-4 space-y-2">
+                  <button
+                    @click="saveSlideConfig"
+                    class="w-full bg-green-600 text-white py-2 rounded-lg font-bold hover:bg-green-700 transition-colors shadow-md"
+                  >
+                    บันทึกการตั้งค่าทั้งหมด
+                  </button>
+                  <button
+                    @click="deleteAllSlides"
+                    class="w-full bg-red-100 text-red-700 py-2 rounded-lg font-bold hover:bg-red-200 transition-colors shadow-sm"
+                  >
+                    ลบสไลด์ทั้งหมดสำหรับวิดีโอนี้
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </div>
-
     </div>
   </div>
 </template>
@@ -149,7 +155,7 @@ let hls = null;
 const slides = ref([]); 
 const currentTimeValue = ref(0);
 const isUploading = ref(false);
-const isSyncEnabled = ref(false); // โหมดซิงค์สไลด์กับวิดีโอ (ค่าเริ่มต้น: ปิด)
+const isSyncEnabled = ref(false); 
 
 // --- 1. การดึงข้อมูลวิดีโอและระบบ Resume ---
 const fetchVideoData = async () => {
@@ -344,7 +350,7 @@ const deleteAllSlides = async () => {
   }
 };
 
-// --- 4. ระบบ Tracking (ของเดิม) ---
+// --- 4. ระบบ Tracking ---
 const lastTrackedTime = ref(0);
 
 const onTimeUpdateWrapper = (event) => {
@@ -415,10 +421,11 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
-  isLeaving = true;
   if (videoPlayer.value) {
+    // ส่ง LEAVE_PAGE ก่อน เพื่อให้ backend บันทึก resume time
     sendTrackingData('LEAVE_PAGE', videoPlayer.value.currentTime);
   }
+  isLeaving = true;
   if (hls) hls.destroy();
   window.removeEventListener('beforeunload', saveResumeTimeOnLeave);
 });
@@ -431,5 +438,21 @@ onBeforeUnmount(() => {
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: #cbd5e1;
   border-radius: 10px;
+}
+
+/* Slide transition */
+.slide-fade-enter-active {
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+.slide-fade-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.slide-fade-enter-from {
+  opacity: 0;
+  transform: translateX(20px);
+}
+.slide-fade-leave-to {
+  opacity: 0;
+  transform: translateX(-20px);
 }
 </style>
