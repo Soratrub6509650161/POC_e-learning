@@ -1,6 +1,6 @@
 <template>
   <div class="container mx-auto p-6 font-sans">
-    <h1 class="text-3xl font-bold mb-8 text-white">📚 คอร์สเรียนของฉัน</h1>
+    <h1 class="text-3xl font-bold mb-8 text-white">คอร์สเรียน</h1>
 
     <div v-if="loading" class="text-center text-xl text-gray-500 py-10">
       กำลังโหลดข้อมูลวิดีโอ...
