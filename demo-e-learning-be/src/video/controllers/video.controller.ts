@@ -65,30 +65,47 @@ export class VideoController {
     }
     return video;
   }
-
+  
   // 🚀 [API ใหม่] เส้นนี้เตรียมไว้ให้ AWS ยิงเข้ามาตอนหั่นไฟล์เสร็จ!
   @Post('webhook/aws-mediaconvert')
   handleAwsWebhook(@Body() payload: any) {
     console.log('--- AWS ยิง Webhook มาแล้ว! ---');
     console.log('ข้อมูลที่ส่งมา:', payload);
 
-    // สมมติว่า Lambda ของพี่เขาส่งข้อมูลมาหน้าตาแบบนี้
+    // กรณีที่ AWS หั่นไฟล์สำเร็จ
     if (payload.status === 'COMPLETED') {
-      const videoId = payload.videoId; // ID ที่เราใช้ผูกกับ Database
-      const m3u8Url = payload.playlistUrl; // ลิงก์ CloudFront ที่หั่นเสร็จแล้ว
+      const videoId = payload.videoId; 
+      const m3u8Url = payload.playlistUrl; 
       
       console.log(`✅ วิดีโอ ${videoId} หั่นเสร็จแล้ว!`);
       console.log(`🔗 Streaming URL: ${m3u8Url}`);
 
-      // TODO: เอา m3u8Url ไปอัปเดตลง Database ในช่อง streamUrl
-      // เช่น this.database.update(videoId, { streamUrl: m3u8Url, isCompleted: true })
+      // ค้นหาวิดีโอใน Database จำลองของเรา
+      const videoIndex = this.mockVideoDb.findIndex(v => v.id === videoId);
+      
+      if (videoIndex !== -1) {
+        // อัปเดตลิงก์สตรีมมิ่งเป็นของใหม่ที่ได้จาก CloudFront
+        this.mockVideoDb[videoIndex].streamUrl = m3u8Url;
+        console.log(`💾 อัปเดต Database สำเร็จ! วิดีโอ ${videoId} พร้อมเล่นแล้ว`);
+      } else {
+        console.warn(`⚠️ ไม่พบวิดีโอ ID: ${videoId} ในระบบ`);
+      }
       
       return { message: 'Webhook received and database updated!' };
     }
 
+    // กรณีที่ AWS หั่นไฟล์ไม่สำเร็จ (เช่น ไฟล์ต้นฉบับพัง)
     if (payload.status === 'ERROR') {
       console.error('❌ AWS หั่นไฟล์พัง:', payload.errorMessage);
-      // TODO: อัปเดตสถานะใน DB ว่า Error แจ้งเตือน User
+      const videoId = payload.videoId;
+
+      const videoIndex = this.mockVideoDb.findIndex(v => v.id === videoId);
+      if (videoIndex !== -1) {
+        // อาจจะกำหนดค่าบางอย่างเพื่อบอกให้หน้าบ้านรู้ว่าวิดีโอนี้ Error (ถ้าระบบจริงอาจจะมี status: 'FAILED')
+        this.mockVideoDb[videoIndex].streamUrl = 'error'; 
+        console.log(`💾 อัปเดตสถานะวิดีโอ ${videoId} เป็น Error`);
+      }
+
       return { message: 'Error logged' };
     }
 
