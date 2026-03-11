@@ -85,14 +85,51 @@
           <div class="flex flex-col h-full">
             <div class="rounded-xl border border-gray-100 h-full flex flex-col">
 
-              <div v-if="displaySlide" class="border-2 border-blue-500 rounded-lg overflow-hidden shadow-md mb-4 relative aspect-video">
+              <div v-if="displaySlide" class="border-2 border-blue-500 rounded-lg overflow-hidden shadow-md mb-4 relative aspect-video group">
                 <Transition name="slide-fade" mode="out-in">
                   <img :key="displaySlide.slideNumber" :src="displaySlide.imageUrl" class="w-full h-full object-contain bg-gray-50" />
                 </Transition>
 
-                <div class="bg-black bg-opacity-60 text-white flex justify-center items-center py-1.5 px-3 text-xs font-semibold">
-                  <span>สไลด์หน้าที่ {{ displaySlide.slideNumber }}</span>
+                <!-- Slide Number Badge -->
+                <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent text-white flex justify-center items-center py-2 px-3 text-xs font-semibold pointer-events-none">
+                  <span>สไลด์หน้าที่ {{ displaySlide.slideNumber }} / {{ slides.length }}</span>
                 </div>
+
+                <!-- Prev Arrow Button -->
+                <button
+                  v-show="!isAtFirstSlide"
+                  @click="goToPrevSlide"
+                  class="absolute left-2 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/75 text-white rounded-full w-9 h-9 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-lg backdrop-blur-sm"
+                  title="สไลด์ก่อนหน้า"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+
+                <!-- Next Arrow Button -->
+                <button
+                  v-show="!isAtLastSlide"
+                  @click="goToNextSlide"
+                  class="absolute right-2 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/75 text-white rounded-full w-9 h-9 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-lg backdrop-blur-sm"
+                  title="สไลด์ถัดไป"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+
+                <!-- Sync Slide with Video Button (แสดงเฉพาะโหมด Manual) -->
+                <Transition name="fade-up">
+                  <div v-if="selectedSlideNumber !== null" class="absolute bottom-8 left-1/2 -translate-x-1/2 z-10">
+                    <button
+                      @click="clearSelection"
+                      class="flex items-center gap-1.5 bg-blue-600/90 hover:bg-blue-700 text-white text-xs font-semibold px-3.5 py-1.5 rounded-full shadow-xl transition-all duration-200 whitespace-nowrap backdrop-blur-sm border border-white/20 hover:scale-105 active:scale-95"
+                    >
+                      🔄 Sync slide with video
+                    </button>
+                  </div>
+                </Transition>
               </div>
 
               <div class="flex items-center justify-between mb-3">
@@ -318,6 +355,33 @@ const clearSelection = () => {
   selectedSlideNumber.value = null;
 };
 
+// ฟังก์ชันเลื่อนสไลด์ไปหน้าถัดไป (เข้าสู่โหมด Manual ทันที)
+const goToNextSlide = () => {
+  if (!slides.value.length || !displaySlide.value) return;
+  const currentIndex = slides.value.findIndex(s => s.slideNumber === displaySlide.value.slideNumber);
+  const nextIndex = Math.min(currentIndex + 1, slides.value.length - 1);
+  selectedSlideNumber.value = slides.value[nextIndex].slideNumber;
+};
+
+// ฟังก์ชันเลื่อนสไลด์ไปหน้าก่อนหน้า (เข้าสู่โหมด Manual ทันที)
+const goToPrevSlide = () => {
+  if (!slides.value.length || !displaySlide.value) return;
+  const currentIndex = slides.value.findIndex(s => s.slideNumber === displaySlide.value.slideNumber);
+  const prevIndex = Math.max(currentIndex - 1, 0);
+  selectedSlideNumber.value = slides.value[prevIndex].slideNumber;
+};
+
+// คำนวณว่าอยู่ที่สไลด์แรกหรือสไลด์สุดท้ายหรือไม่ (เพื่อซ่อนปุ่ม Prev/Next ที่ขอบ)
+const isAtFirstSlide = computed(() => {
+  if (!slides.value.length || !displaySlide.value) return true;
+  return slides.value[0].slideNumber === displaySlide.value.slideNumber;
+});
+
+const isAtLastSlide = computed(() => {
+  if (!slides.value.length || !displaySlide.value) return true;
+  return slides.value[slides.value.length - 1].slideNumber === displaySlide.value.slideNumber;
+});
+
 // ฟังก์ชันบันทึกเวลา (กด Mark ซ้ำจะเขียนทับเวลาเดิมได้)
 const markSlideTime = (slide) => {
   if (videoPlayer.value) {
@@ -506,5 +570,21 @@ onBeforeUnmount(() => {
 .slide-fade-leave-to {
   opacity: 0;
   transform: translateX(-20px);
+}
+
+/* Sync button fade-up transition */
+.fade-up-enter-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.fade-up-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.fade-up-enter-from {
+  opacity: 0;
+  transform: translateX(-50%) translateY(8px);
+}
+.fade-up-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(8px);
 }
 </style>
