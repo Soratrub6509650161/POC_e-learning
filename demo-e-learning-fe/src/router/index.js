@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import VideoList from '../components/VideoList.vue';
+import VideoUpload from '../components/VideoUpload.vue';
 
 const routes = [
   {
@@ -12,6 +13,11 @@ const routes = [
     name: 'Player',
 
     component: () => import('../components/VideoPlayer.vue') 
+  },
+  {
+    path: '/upload',
+    name: 'VideoUpload',
+    component: VideoUpload
   }
 ];
 

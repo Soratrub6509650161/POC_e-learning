@@ -1,6 +1,6 @@
 <template>
   <div class="container mx-auto p-6 max-w-6xl font-sans">
-    
+
     <button @click="router.push('/')" class="mb-6 text-blue-600 hover:text-blue-800 flex items-center gap-2 font-medium">
       <span>⬅️ กลับไปหน้ารวมคอร์ส</span>
     </button>
@@ -20,18 +20,47 @@
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
           <!-- คอลัมน์ฝั่งวิดีโอ -->
           <div class="flex flex-col h-full">
-            <div class="bg-black rounded-lg overflow-hidden aspect-video shadow-inner">
-              <video 
-                ref="videoPlayer" 
-                controls 
+            <div class="bg-black rounded-lg overflow-hidden aspect-video shadow-inner relative group">
+              <video
+                ref="videoPlayer"
+                controls
                 class="w-full h-full"
-                @loadedmetadata="jumpToResumeTime"  
+                @loadedmetadata="jumpToResumeTime"
                 @timeupdate="onTimeUpdateWrapper"
                 @seeked="handleSeeked"
                 @play="handlePlay"
                 @pause="handlePause"
                 @ended="handleEnded"
               ></video>
+
+              <!-- Quality Selector -->
+              <div v-if="videoQualities.length > 0" class="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                <div class="relative">
+                  <button
+                    @click="showQualityMenu = !showQualityMenu"
+                    class="bg-black bg-opacity-70 text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-opacity-90 transition-all flex items-center gap-1.5 border border-white border-opacity-20"
+                  >
+                    <span>⚙️</span>
+                    <span>{{ videoQualities.find(q => q.index === currentQuality)?.label || 'Auto' }}</span>
+                  </button>
+
+                  <!-- Dropdown Menu -->
+                  <div
+                    v-if="showQualityMenu"
+                    class="absolute right-0 top-full mt-1 bg-gray-900 bg-opacity-95 rounded-lg shadow-xl border border-white border-opacity-10 overflow-hidden min-w-[100px]"
+                  >
+                    <button
+                      v-for="q in videoQualities"
+                      :key="q.index"
+                      @click="changeQuality(q.index)"
+                      class="w-full text-left text-xs px-4 py-2 transition-colors"
+                      :class="currentQuality === q.index ? 'bg-blue-600 text-white font-bold' : 'text-gray-200 hover:bg-white hover:bg-opacity-10'"
+                    >
+                      {{ q.label }}
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <!-- เครื่องมือสำหรับผู้สอน แสดงเฉพาะเมื่อเปิดโหมดซิงค์ -->
@@ -55,18 +84,18 @@
           <!-- คอลัมน์ฝั่งสไลด์ -->
           <div class="flex flex-col h-full">
             <div class="rounded-xl border border-gray-100 h-full flex flex-col">
-      
+
               <div v-if="displaySlide" class="border-2 border-blue-500 rounded-lg overflow-hidden shadow-md mb-4 relative aspect-video">
                 <Transition name="slide-fade" mode="out-in">
                   <img :key="displaySlide.slideNumber" :src="displaySlide.imageUrl" class="w-full h-full object-contain bg-gray-50" />
                 </Transition>
-                
+
                 <div class="bg-black bg-opacity-60 text-white flex justify-center items-center py-1.5 px-3 text-xs font-semibold">
                   <span>สไลด์หน้าที่ {{ displaySlide.slideNumber }}</span>
                 </div>
               </div>
 
-              <div class="flex items-center justify-between mb-3">                
+              <div class="flex items-center justify-between mb-3">
                 <!-- ปุ่มโหมดซิงค์สำหรับควบคุมพฤติกรรมสไลด์ -->
                 <button
                   @click="toggleSyncMode"
@@ -148,14 +177,19 @@ const video = ref(null);
 const loading = ref(true);
 const error = ref(null);
 const resumeTime = ref(0);
-const videoPlayer = ref(null); 
-let hls = null; 
+const videoPlayer = ref(null);
+let hls = null;
+
+// --- Quality Selector ---
+const videoQualities = ref([]);
+const currentQuality = ref(-1);
+const showQualityMenu = ref(false);
 
 // --- ส่วนของ Slide Sync Data ---
-const slides = ref([]); 
+const slides = ref([]);
 const currentTimeValue = ref(0);
 const isUploading = ref(false);
-const isSyncEnabled = ref(false); 
+const isSyncEnabled = ref(false);
 
 // --- 1. การดึงข้อมูลวิดีโอและระบบ Resume ---
 const fetchVideoData = async () => {
@@ -197,11 +231,29 @@ const setupPlayer = (streamUrl) => {
   if (!videoPlayer.value) return;
   if (Hls.isSupported()) {
     hls = new Hls();
-    hls.loadSource(streamUrl); 
+    hls.loadSource(streamUrl);
     hls.attachMedia(videoPlayer.value);
+    hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
+      const levels = data.levels
+        .map((level, index) => ({
+          index,
+          label: `${level.height}p`,
+          height: level.height,
+        }))
+        .sort((a, b) => b.height - a.height);
+      videoQualities.value = [{ index: -1, label: 'Auto', height: Infinity }, ...levels];
+      currentQuality.value = -1;
+    });
   } else if (videoPlayer.value.canPlayType('application/vnd.apple.mpegurl')) {
     videoPlayer.value.src = streamUrl;
   }
+};
+
+const changeQuality = (levelIndex) => {
+  if (!hls) return;
+  hls.currentLevel = levelIndex;
+  currentQuality.value = levelIndex;
+  showQualityMenu.value = false;
 };
 
 // --- 2. การจัดการไฟล์ PDF ---
@@ -372,15 +424,15 @@ const sendTrackingData = async (eventType, currentTime) => {
   const timeInSeconds = Math.floor(currentTime);
   try {
     await fetch('http://localhost:3000/progress', {
-      method: 'POST', 
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        videoId: currentVideoId, 
+      body: JSON.stringify({
+        videoId: currentVideoId,
         userId: 'user-001',
-        eventType: eventType, 
-        currentTime: timeInSeconds 
+        eventType: eventType,
+        currentTime: timeInSeconds
       }),
-      keepalive: true 
+      keepalive: true
     });
   } catch (error) {
     console.error('❌ Tracking Error:', error);
@@ -389,7 +441,7 @@ const sendTrackingData = async (eventType, currentTime) => {
 
 const handleSeeked = (event) => {
   sendTrackingData('SEEKED', event.target.currentTime);
-  lastTrackedTime.value = event.target.currentTime; 
+  lastTrackedTime.value = event.target.currentTime;
 };
 
 const handlePlay = (event) => sendTrackingData('PLAY', event.target.currentTime);
@@ -397,19 +449,19 @@ const handlePause = (event) => sendTrackingData('PAUSE', event.target.currentTim
 const handleEnded = (event) => sendTrackingData('ENDED', event.target.currentTime);
 
 const saveResumeTimeOnLeave = () => {
-  if (isLeaving) return; 
-  isLeaving = true; 
+  if (isLeaving) return;
+  isLeaving = true;
   const currentTime = videoPlayer.value ? videoPlayer.value.currentTime : 0;
   fetch('http://localhost:3000/progress', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ 
-      videoId: currentVideoId, 
-      userId: 'user-001', 
-      eventType: 'LEAVE_PAGE', 
-      currentTime: Math.floor(currentTime) 
+    body: JSON.stringify({
+      videoId: currentVideoId,
+      userId: 'user-001',
+      eventType: 'LEAVE_PAGE',
+      currentTime: Math.floor(currentTime)
     }),
-    keepalive: true 
+    keepalive: true
   });
 };
 
