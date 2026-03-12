@@ -3,6 +3,7 @@ import { VideoController } from './controllers/video.controller';
 import { StorageService } from './services/storage.service';
 import { LocalStorageService } from './services/local-storage.service';
 import { PdfService } from './services/pdf.service'; 
+import { AwsMediaConvertService } from './services/aws-mediaconvert.service';
 
 @Module({
   controllers: [VideoController],
@@ -11,7 +12,8 @@ import { PdfService } from './services/pdf.service';
       provide: StorageService,
       useClass: LocalStorageService, 
     },
-    PdfService, 
+    PdfService,
+    AwsMediaConvertService
   ],
 })
 export class VideoModule {}

@@ -4,6 +4,7 @@ import { UseInterceptors, UploadedFile } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { PdfService } from '../services/pdf.service';
+import { AwsMediaConvertService } from '../services/aws-mediaconvert.service';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -32,7 +33,8 @@ export class VideoController {
 
   constructor(
     private readonly storageService: StorageService,
-    private readonly pdfService: PdfService 
+    private readonly pdfService: PdfService,
+    private readonly mediaconvertService: AwsMediaConvertService
   ) {}
 
   private getSlidesConfigPath(videoId: string) {
@@ -253,6 +255,38 @@ export class VideoController {
     } catch (error) {
       console.error('Error deleting slides directory (POST):', error);
       return { error: 'Failed to delete slides' };
+    }
+  }
+
+  @Post('upload-complete')
+  async handleUploadComplete(@Body('videoId') videoId: string) {
+    if (!videoId) {
+      return { error: 'Missing videoId' };
+    }
+
+    console.log(`📥 ได้รับแจ้งว่าอัปโหลดเสร็จแล้วสำหรับ Video ID: ${videoId}`);
+
+    // 1. ค้นหาวิดีโอใน Database จำลอง
+    const videoIndex = this.mockVideoDb.findIndex(v => v.id === videoId);
+    if (videoIndex === -1) {
+      return { error: 'Video not found' };
+    }
+
+    const video = this.mockVideoDb[videoIndex];
+    const s3Key = (video as any).originalS3Key; // พิกัดไฟล์ต้นฉบับที่เราเซฟไว้ตอนขอ URL
+
+    // 2. อัปเดตสถานะเป็น PROCESSING
+    (video as any).status = 'PROCESSING';
+
+    // 3. สั่ง MediaConvert ให้เริ่มหั่นวิดีโอ!
+    try {
+      await this.mediaconvertService.startTranscoding(s3Key, videoId);
+      return { 
+        message: 'เริ่มกระบวนการหั่นวิดีโอแล้ว', 
+        status: 'PROCESSING' 
+      };
+    } catch (error) {
+      return { error: 'ไม่สามารถสั่งหั่นวิดีโอได้' };
     }
   }
 

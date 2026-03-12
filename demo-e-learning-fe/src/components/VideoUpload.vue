@@ -92,7 +92,8 @@ const statusMessage = computed(() => {
   switch (uploadStatus.value) {
     case 'requesting': return 'กำลังขอ URL สำหรับอัปโหลดจาก Backend...';
     case 'uploading': return 'กำลังส่งไฟล์ขึ้น Cloud (S3)...';
-    case 'success': return 'อัปโหลดเสร็จสมบูรณ์! 🎉';
+    case 'processing': return 'กำลังสั่งระบบหั่นวิดีโอ (MediaConvert)... ⚙️'; 
+    case 'success': return 'อัปโหลดและสั่งหั่นวิดีโอเสร็จสมบูรณ์! 🎉';
     case 'error': return 'เกิดข้อผิดพลาดในการอัปโหลด ❌';
     default: return '';
   }
@@ -130,7 +131,7 @@ const startUpload = async () => {
   uploadProgress.value = 0;
 
   try {
-    // Step 1: ขอ Presigned URL จาก Backend
+    // Step 1: ขอ Presigned URL และ Video ID จาก Backend
     console.log('Step 1: Requesting upload URL...');
     const urlResponse = await fetch(`http://localhost:3000/video/upload-url?fileName=${encodeURIComponent(selectedFile.value.name)}`);
     const urlData = await urlResponse.json();
@@ -139,14 +140,31 @@ const startUpload = async () => {
       throw new Error(urlData.error || 'ไม่สามารถสร้าง Presigned URL จาก Backend ได้');
     }
 
-    const { uploadUrl } = urlData;
+    // รับ videoId กลับมาด้วย 
+    const { uploadUrl, videoId } = urlData; 
     console.log('ได้รับ Presigned URL แล้วเตรียมยิงตรงขึ้น S3');
 
-    // Step 2: อัปโหลดไฟล์ไปที่ S3 โดยตรงด้วย XMLHttpRequest (เพื่อให้แทร็ก Progress ได้)
+    // Step 2: อัปโหลดไฟล์ไปที่ S3 โดยตรงด้วย XMLHttpRequest
     uploadStatus.value = 'uploading';
     await uploadToS3(uploadUrl, selectedFile.value);
 
-    // สำเร็จ!
+    // Step 3: แจ้ง Backend ว่าอัปโหลดเสร็จแล้ว ให้เริ่มหั่นวิดีโอ
+    uploadStatus.value = 'processing';
+    console.log(`Step 3: แจ้ง Backend ว่าอัปโหลดเสร็จแล้ว (Video ID: ${videoId})`);
+    
+    const completeResponse = await fetch('http://localhost:3000/video/upload-complete', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ videoId }),
+    });
+
+    if (!completeResponse.ok) {
+      throw new Error('อัปโหลดสำเร็จ แต่ไม่สามารถสั่งหั่นวิดีโอได้ (Backend Error)');
+    }
+
+    // สำเร็จครบทุกขั้นตอน
     uploadStatus.value = 'success';
     uploadProgress.value = 100;
     
