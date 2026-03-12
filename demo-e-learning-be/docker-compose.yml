@@ -1,0 +1,104 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Kafka — KRaft Mode (ไม่ใช้ Zookeeper)
+# Image: apache/kafka (Official Apache Software Foundation Image)
+# ─────────────────────────────────────────────────────────────────────────────
+# หมายเหตุ: เปลี่ยนจาก bitnami/kafka → apache/kafka เพราะ Bitnami ยกเลิก
+#           การแจก Free versioned tags แล้ว (Broadcom restructuring 2025)
+#
+# Listener Design (2 listeners):
+#   PLAINTEXT_HOST://:9092  → advertise localhost:9092
+#                             สำหรับ NestJS บน Host เชื่อมต่อผ่าน port mapping
+#
+#   PLAINTEXT://:29092      → advertise kafka:29092
+#                             สำหรับ Docker-internal services (kafka-init)
+#                             ใช้ Container Name แทน localhost ได้
+#
+# ทำไมต้องแยก 2 Listener?
+#   ถ้าใช้ ADVERTISED_LISTENERS=localhost:9092 listener เดียว
+#   kafka-init container จะได้รับคำสั่งให้ต่อไปที่ localhost:9092
+#   ซึ่งหมายถึง localhost ของ init container เอง ไม่ใช่ kafka container
+#   → Connection refused ทันที
+#
+# คำสั่งที่ใช้บ่อย:
+#   docker compose up -d          → เปิด Kafka + Init
+#   docker compose down -v        → ปิด + ลบ Volume ทิ้ง (เริ่มใหม่สะอาด)
+#   docker compose logs -f kafka  → ดู Kafka Log แบบ Real-time
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  # ── 1. Kafka Broker (KRaft Combined Mode) ───────────────────────────────────
+  kafka:
+    image: apache/kafka:3.9.0
+    container_name: elearning-kafka
+    ports:
+      # เปิด port 9092 ให้ NestJS บน Host เชื่อมต่อเข้ามาได้
+      # port 29092 (internal) ไม่ต้อง expose เพราะใช้แค่ใน Docker Network
+      - '9092:9092'
+    environment:
+      # ── KRaft Identity ────────────────────────────────────────────────────────
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+
+      # ── Controller Quorum ─────────────────────────────────────────────────────
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+
+      # ── Listeners ─────────────────────────────────────────────────────────────
+      KAFKA_LISTENERS: PLAINTEXT_HOST://:9092,PLAINTEXT://:29092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT_HOST://localhost:9092,PLAINTEXT://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+
+      # ── Single-Node Replication ───────────────────────────────────────────────
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+
+      # ── Dev / Performance ─────────────────────────────────────────────────────
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_NUM_PARTITIONS: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'false'
+
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+
+    healthcheck:
+      test: /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # ── 2. Kafka Init (สร้าง Topic อัตโนมัติทุกครั้งที่ Stack เริ่ม) ──────────────
+  #
+  # ทำงานแค่ครั้งเดียวต่อการ `docker compose up` แล้ว Exit (restart: no)
+  # ใช้ --if-not-exists เพื่อให้ Idempotent (รันซ้ำกี่ครั้งก็ปลอดภัย)
+  # เชื่อมต่อผ่าน kafka:29092 (Internal Listener) ไม่ใช่ localhost:9092
+  # ─────────────────────────────────────────────────────────────────────────────
+  kafka-init:
+    image: apache/kafka:3.9.0
+    container_name: elearning-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    # override entrypoint เพื่อไม่ให้ Kafka startup script ของ Image ทำงาน
+    # แล้วรัน shell script ของเราโดยตรงแทน
+    entrypoint: ['/bin/sh', '-c']
+    command:
+      - |
+        echo '──────────────────────────────────────────'
+        echo '📦 [kafka-init] Creating required topics...'
+        /opt/kafka/bin/kafka-topics.sh \
+          --bootstrap-server kafka:29092 \
+          --create \
+          --if-not-exists \
+          --topic video-progress-events \
+          --partitions 1 \
+          --replication-factor 1
+        echo '✅ [kafka-init] Topic [video-progress-events] is ready'
+        echo '──────────────────────────────────────────'
+    restart: 'no'
+
+volumes:
+  kafka_data:
+    driver: local
