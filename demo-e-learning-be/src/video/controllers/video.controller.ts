@@ -299,17 +299,21 @@ export class VideoController {
 
     console.log(`📥 ได้รับแจ้งว่าอัปโหลดเสร็จแล้วสำหรับ Video ID: ${videoId}`);
 
-    // 1. ค้นหาวิดีโอใน Database จำลอง
-    const videoIndex = this.mockVideoDb.findIndex(v => v.id === videoId);
+    // 🎯 1. อ่าน Database ล่าสุดจากไฟล์ JSON
+    const db = this.readDatabase();
+    
+    // ค้นหาวิดีโอ
+    const videoIndex = db.findIndex(v => v.id === videoId);
     if (videoIndex === -1) {
       return { error: 'Video not found' };
     }
 
-    const video = this.mockVideoDb[videoIndex];
-    const s3Key = (video as any).originalS3Key; // พิกัดไฟล์ต้นฉบับที่เราเซฟไว้ตอนขอ URL
+    const video = db[videoIndex];
+    const s3Key = video.originalS3Key; // พิกัดไฟล์ต้นฉบับที่เราเซฟไว้ตอนขอ URL
 
-    // 2. อัปเดตสถานะเป็น PROCESSING
-    (video as any).status = 'PROCESSING';
+    // 🎯 2. อัปเดตสถานะเป็น PROCESSING แล้วเซฟลงไฟล์ JSON ทันที!
+    db[videoIndex].status = 'PROCESSING';
+    this.saveDatabase(db);
 
     // 3. สั่ง MediaConvert ให้เริ่มหั่นวิดีโอ!
     try {
@@ -319,6 +323,11 @@ export class VideoController {
         status: 'PROCESSING' 
       };
     } catch (error) {
+      // (Option เสริม) ถ้าสั่งหั่นวิดีโอไม่สำเร็จ ให้ปรับสถานะเป็น ERROR แล้วเซฟลงไฟล์
+      console.error('❌ สั่ง MediaConvert ไม่สำเร็จ:', error);
+      db[videoIndex].status = 'ERROR';
+      this.saveDatabase(db);
+      
       return { error: 'ไม่สามารถสั่งหั่นวิดีโอได้' };
     }
   }
