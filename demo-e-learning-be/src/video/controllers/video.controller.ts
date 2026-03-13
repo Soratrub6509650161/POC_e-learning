@@ -10,6 +10,21 @@ import * as path from 'path';
 
 @Controller('video')
 export class VideoController {
+
+  private readonly dbFilePath = path.join(process.cwd(), 'mock-database.json');
+
+  private readDatabase(): any[] {
+    if (fs.existsSync(this.dbFilePath)) {
+      const data = fs.readFileSync(this.dbFilePath, 'utf8');
+      return JSON.parse(data);
+    }
+    return []; // ถ้ายังไม่มีไฟล์ ให้คืนค่า Array ว่างๆป
+  }
+
+  // ฟังก์ชันบันทึกข้อมูลลงไฟล์
+  private saveDatabase(data: any[]) {
+    fs.writeFileSync(this.dbFilePath, JSON.stringify(data, null, 2), 'utf8');
+  }
   
   // จำลอง Database ไว้ตรงนี้ เพื่อให้ทุก API ในนี้เรียกใช้ข้อมูลชุดเดียวกันได้
   private mockVideoDb = [
@@ -43,15 +58,19 @@ export class VideoController {
 
   @Get('upload-url')
   async getUploadUrl(@Query('fileName') fileName: string) {
-    if (!fileName) {
-      return { error: 'Please provide a fileName' };
-    }
-    const url = await this.storageService.generateUploadUrl(fileName);
-    return {
-      message: 'success',
-      uploadUrl: url,
-      fileName: fileName
-    };
+    const result = await this.storageService.generateUploadUrl(fileName);
+    
+    // 🎯 อ่าน DB -> เพิ่มข้อมูล -> เซฟ DB
+    const db = this.readDatabase();
+    db.push({
+      id: result.videoId,
+      title: fileName,
+      status: 'UPLOADING',
+      originalS3Key: result.videoKey 
+    });
+    this.saveDatabase(db); // เซฟลงไฟล์ทันที!
+
+    return result;
   }
 
   @Get('list')
@@ -74,6 +93,9 @@ export class VideoController {
     console.log('--- AWS ยิง Webhook มาแล้ว! ---');
     console.log('ข้อมูลที่ส่งมา:', payload);
 
+    // 🎯 1. ดึงข้อมูลล่าสุดจากไฟล์ JSON ก่อน
+    const db = this.readDatabase();
+
     // กรณีที่ AWS หั่นไฟล์สำเร็จ
     if (payload.status === 'COMPLETED') {
       const videoId = payload.videoId; 
@@ -82,12 +104,18 @@ export class VideoController {
       console.log(`✅ วิดีโอ ${videoId} หั่นเสร็จแล้ว!`);
       console.log(`🔗 Streaming URL: ${m3u8Url}`);
 
-      // ค้นหาวิดีโอใน Database จำลองของเรา
-      const videoIndex = this.mockVideoDb.findIndex(v => v.id === videoId);
+      // ค้นหาวิดีโอใน Database (ที่เพิ่งอ่านมาจากไฟล์)
+      const videoIndex = db.findIndex(v => v.id === videoId);
       
       if (videoIndex !== -1) {
-        // อัปเดตลิงก์สตรีมมิ่งเป็นของใหม่ที่ได้จาก CloudFront
-        this.mockVideoDb[videoIndex].streamUrl = m3u8Url;
+        // อัปเดตลิงก์สตรีมมิ่งเป็นของใหม่
+        db[videoIndex].streamUrl = m3u8Url;
+        
+        // แนะนำให้เพิ่มการอัปเดต status ด้วย เพื่อให้หน้าบ้านเอาไปโชว์ได้ว่า "พร้อมเล่น"
+        db[videoIndex].status = 'READY'; 
+        
+        // 🎯 2. สั่งเซฟข้อมูลกลับลงไปทับไฟล์ JSON!
+        this.saveDatabase(db);
         console.log(`💾 อัปเดต Database สำเร็จ! วิดีโอ ${videoId} พร้อมเล่นแล้ว`);
       } else {
         console.warn(`⚠️ ไม่พบวิดีโอ ID: ${videoId} ในระบบ`);
@@ -101,10 +129,15 @@ export class VideoController {
       console.error('❌ AWS หั่นไฟล์พัง:', payload.errorMessage);
       const videoId = payload.videoId;
 
-      const videoIndex = this.mockVideoDb.findIndex(v => v.id === videoId);
+      const videoIndex = db.findIndex(v => v.id === videoId);
       if (videoIndex !== -1) {
-        // อาจจะกำหนดค่าบางอย่างเพื่อบอกให้หน้าบ้านรู้ว่าวิดีโอนี้ Error (ถ้าระบบจริงอาจจะมี status: 'FAILED')
-        this.mockVideoDb[videoIndex].streamUrl = 'error'; 
+        db[videoIndex].streamUrl = 'error'; 
+        
+        // อัปเดตสถานะเป็น FAILED
+        db[videoIndex].status = 'FAILED'; 
+        
+        // 🎯 3. อย่าลืมเซฟข้อมูลกลับลงไฟล์ JSON ด้วย
+        this.saveDatabase(db);
         console.log(`💾 อัปเดตสถานะวิดีโอ ${videoId} เป็น Error`);
       }
 

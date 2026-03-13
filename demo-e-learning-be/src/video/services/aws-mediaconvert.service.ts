@@ -29,6 +29,9 @@ export class AwsMediaConvertService {
     const command = new CreateJobCommand({
       Role: roleArn,
       JobTemplate: templateName,
+      UserMetadata: {
+        videoId: videoId 
+      },
       Settings: {
         Inputs: [
           {
