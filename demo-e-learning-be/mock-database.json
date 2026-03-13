@@ -1,0 +1,16 @@
+[
+  {
+    "id": "bb9e8c8e-d20a-44f9-816c-571f43b31fdb",
+    "title": "วิดีโอทดสอบ (Big Buck Bunny)",
+    "thumbnail": "https://placehold.co/600x400?text=Big+Buck+Bunny",
+    "streamUrl": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+    "duration": "10:00"
+  },
+  {
+    "id": "8101bd57-a6bf-4629-b91c-775f6e290b56",
+    "title": "วิดีโอทดสอบ (Tears of Steel)",
+    "thumbnail": "https://placehold.co/600x400?text=Tears+of+Steel",
+    "streamUrl": "https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8",
+    "duration": "12:20"
+  }
+]
