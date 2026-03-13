@@ -18,7 +18,10 @@ export class VideoController {
       const data = fs.readFileSync(this.dbFilePath, 'utf8');
       return JSON.parse(data);
     }
-    return []; // ถ้ายังไม่มีไฟล์ ให้คืนค่า Array ว่างๆป
+    
+    // 🎯 ถ้ายังไม่มีไฟล์ (รันครั้งแรก) ให้เอา mockVideoDb ของเดิมมาเซฟสร้างเป็นไฟล์ให้เลย!
+    this.saveDatabase(this.mockVideoDb);
+    return this.mockVideoDb; 
   }
 
   // ฟังก์ชันบันทึกข้อมูลลงไฟล์
@@ -75,12 +78,15 @@ export class VideoController {
 
   @Get('list')
   findAll() {
-    return this.mockVideoDb;
+    // 🎯 อ่านจากไฟล์ JSON
+    return this.readDatabase(); 
   }
 
   @Get(':id')
   findOne(@Param('id') id: string) {
-    const video = this.mockVideoDb.find(v => v.id === id);
+    // 🎯 อ่านจากไฟล์ JSON
+    const db = this.readDatabase();
+    const video = db.find(v => v.id === id);
     if (!video) {
       return { error: 'Video not found' };
     }
